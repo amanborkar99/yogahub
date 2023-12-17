@@ -12,7 +12,7 @@ function submitForm() {
     };
 
     // Make API call to register user and make payment
-    fetch('http://52.66.152.113:3000/register', {
+    fetch('https://52.66.152.113:3000/register', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
