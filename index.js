@@ -1,11 +1,11 @@
-const http = require('http');
+const https = require('https');
 const url = require('url');
 const querystring = require('querystring');
 
 // In-memory array to store user data
 const users = [];
 
-const server = http.createServer((req, res) => {
+const server = https.createServer((req, res) => {
     const parsedUrl = url.parse(req.url);
     const parsedQuery = querystring.parse(parsedUrl.query);
 
@@ -45,5 +45,5 @@ const server = http.createServer((req, res) => {
 
 const port = 3000;
 server.listen(port, () => {
-    console.log(`Server running at http://localhost:${port}/`);
+    console.log(`Server running at https://localhost:${port}/`);
 });
