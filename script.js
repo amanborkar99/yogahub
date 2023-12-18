@@ -2,7 +2,7 @@ function submitForm() {
     // Get form data
     const name = document.getElementById('name').value;
     const age = document.getElementById('age').value;
-    const month = document.getElementById('month').value; // Added line to get the selected month
+    const month = document.getElementById('month').value;
     const batch = document.getElementById('batch').value;
 
     // Validate age
@@ -22,7 +22,7 @@ function submitForm() {
     const formData = {
         name,
         age,
-        month, // Include the selected month in the form data
+        month,
         batch,
     };
 
@@ -41,7 +41,7 @@ function submitForm() {
         if (data.success) {
             alert('Registration and payment successful!');
         } else {
-            alert('Registration failed. Please try again.');
+            alert('Registration failed: ' + data.message);
         }
     })
     .catch(error => {
