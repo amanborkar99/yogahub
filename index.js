@@ -32,7 +32,7 @@ const server = http.createServer((req, res) => {
         req.on('end', () => {
             const userData = JSON.parse(body);
 
-            if (!userData.name || !userData.age || !userData.batch) {
+            if (!userData.name || !userData.age || !userData.batch || !userData.month) {
                 res.writeHead(400, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ success: false, message: 'Invalid data' }));
             } else {
@@ -45,21 +45,73 @@ const server = http.createServer((req, res) => {
                         return;
                     }
 
-                    const sql = 'INSERT INTO Registrations (Name, Age, Batch) VALUES (?, ?, ?)';
-                    const values = [userData.name, userData.age, userData.batch];
+                    // Check if the user already exists based on name, age, month, and batch
+                    const checkUserSql =
+                        'SELECT * FROM Registrations WHERE Name = ? AND Age = ? AND Month = ? AND Batch = ?';
+                    const checkUserValues = [userData.name, userData.age, userData.month, userData.batch];
 
-                    connection.query(sql, values, (queryError, results) => {
-                        // Release the connection back to the pool
-                        connection.release();
-
-                        if (queryError) {
-                            console.error('MySQL Query Error:', queryError);
+                    connection.query(checkUserSql, checkUserValues, (checkUserError, existingUser) => {
+                        if (checkUserError) {
+                            console.error('MySQL Query Error:', checkUserError);
                             res.writeHead(500, { 'Content-Type': 'application/json' });
                             res.end(JSON.stringify({ success: false, message: 'Internal Server Error' }));
-                        } else {
-                            res.writeHead(200, { 'Content-Type': 'application/json' });
-                            res.end(JSON.stringify({ success: true, message: 'Registration successful' }));
+                            connection.release();
+                            return;
                         }
+
+                        if (existingUser && existingUser.length > 0) {
+                            // User already registered for the given month and batch
+                            res.writeHead(400, { 'Content-Type': 'application/json' });
+                            res.end(JSON.stringify({ success: false, message: 'User already registered for this month and batch' }));
+                            connection.release();
+                            return;
+                        }
+
+                        // Check if the user already exists based on name, age, and month (regardless of batch)
+                        const checkUserWithDifferentMonthSql =
+                            'SELECT * FROM Registrations WHERE Name = ? AND Age = ? AND Month = ?';
+                        const checkUserWithDifferentMonthValues = [userData.name, userData.age, userData.month];
+
+                        connection.query(
+                            checkUserWithDifferentMonthSql,
+                            checkUserWithDifferentMonthValues,
+                            (checkUserWithDifferentMonthError, existingUserWithDifferentMonth) => {
+                                if (checkUserWithDifferentMonthError) {
+                                    console.error('MySQL Query Error:', checkUserWithDifferentMonthError);
+                                    res.writeHead(500, { 'Content-Type': 'application/json' });
+                                    res.end(JSON.stringify({ success: false, message: 'Internal Server Error' }));
+                                    connection.release();
+                                    return;
+                                }
+
+                                if (existingUserWithDifferentMonth && existingUserWithDifferentMonth.length > 0) {
+                                    // User already registered for a different month, create a new entry
+                                    const insertSql =
+                                        'INSERT INTO Registrations (Name, Age, Month, Batch) VALUES (?, ?, ?, ?)';
+                                    const insertValues = [userData.name, userData.age, userData.month, userData.batch];
+
+                                    connection.query(insertSql, insertValues, (insertError, insertResults) => {
+                                        // Release the connection back to the pool
+                                        connection.release();
+
+                                        if (insertError) {
+                                            console.error('MySQL Query Error:', insertError);
+                                            res.writeHead(500, { 'Content-Type': 'application/json' });
+                                            res.end(JSON.stringify({ success: false, message: 'Internal Server Error' }));
+                                        } else {
+                                            res.writeHead(200, { 'Content-Type': 'application/json' });
+                                            res.end(JSON.stringify({ success: true, message: 'Registration successful' }));
+                                        }
+                                    });
+                                } else {
+                                    // User does not exist for the given month, return an error
+                                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                                    res.end(JSON.stringify({ success: false, message: 'You can only change batch in the upcoming month' }));
+                                    connection.release();
+                                    return;
+                                }
+                            }
+                        );
                     });
                 });
             }
