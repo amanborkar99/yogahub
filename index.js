@@ -1,15 +1,27 @@
 const http = require('http');
 const url = require('url');
 const querystring = require('querystring');
+const cors = require('cors');
+const mysql = require('mysql');
 
-// In-memory array to store user data
-const users = [];
+// MySQL database configuration
+const dbConfig = {
+    host: 'database-1.chye4e4am70d.ap-south-1.rds.amazonaws.com',
+    user: 'admin',
+    password: 'aman12345',
+    database: 'YogaClassDB',
+    port: 3306,
+};
+
+// Create a MySQL connection pool
+const pool = mysql.createPool(dbConfig);
 
 const server = http.createServer((req, res) => {
     const parsedUrl = url.parse(req.url);
     const parsedQuery = querystring.parse(parsedUrl.query);
 
-    // Registration API endpoint
+    cors()(req, res, () => {});
+
     if (parsedUrl.pathname === '/register' && req.method === 'POST') {
         let body = '';
 
@@ -20,24 +32,65 @@ const server = http.createServer((req, res) => {
         req.on('end', () => {
             const userData = JSON.parse(body);
 
-            // Basic validation
             if (!userData.name || !userData.age || !userData.batch) {
                 res.writeHead(400, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ success: false, message: 'Invalid data' }));
             } else {
-                // Store user data in the in-memory array
-                users.push(userData);
+                // Use the connection pool to execute the query
+                pool.getConnection((error, connection) => {
+                    if (error) {
+                        console.error('MySQL Connection Error:', error);
+                        res.writeHead(500, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ success: false, message: 'Internal Server Error' }));
+                        return;
+                    }
 
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ success: true, message: 'Registration successful' }));
+                    const sql = 'INSERT INTO Registrations (Name, Age, Batch) VALUES (?, ?, ?)';
+                    const values = [userData.name, userData.age, userData.batch];
+
+                    connection.query(sql, values, (queryError, results) => {
+                        // Release the connection back to the pool
+                        connection.release();
+
+                        if (queryError) {
+                            console.error('MySQL Query Error:', queryError);
+                            res.writeHead(500, { 'Content-Type': 'application/json' });
+                            res.end(JSON.stringify({ success: false, message: 'Internal Server Error' }));
+                        } else {
+                            res.writeHead(200, { 'Content-Type': 'application/json' });
+                            res.end(JSON.stringify({ success: true, message: 'Registration successful' }));
+                        }
+                    });
+                });
             }
         });
     } else if (parsedUrl.pathname === '/users' && req.method === 'GET') {
-        // Endpoint to retrieve all registered users
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(users));
+        // Use the connection pool to execute the query
+        pool.getConnection((error, connection) => {
+            if (error) {
+                console.error('MySQL Connection Error:', error);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: false, message: 'Internal Server Error' }));
+                return;
+            }
+
+            const sql = 'SELECT * FROM Registrations';
+
+            connection.query(sql, (queryError, results) => {
+                // Release the connection back to the pool
+                connection.release();
+
+                if (queryError) {
+                    console.error('MySQL Query Error:', queryError);
+                    res.writeHead(500, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: false, message: 'Internal Server Error' }));
+                } else {
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify(results));
+                }
+            });
+        });
     } else {
-        // Default response
         res.writeHead(200, { 'Content-Type': 'text/plain' });
         res.end('Hello, this is your Node.js server on AWS EC2!\n');
     }
